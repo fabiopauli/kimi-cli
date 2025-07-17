@@ -1,0 +1,8 @@
+groq
+pydantic
+python-dotenv
+rich
+prompt-toolkit
+thefuzz
+python-levenshtein
+tiktoken

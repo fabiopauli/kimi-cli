@@ -1,0 +1,21 @@
+[project]
+name = "grok"
+version = "0.1.0"
+description = "Kimi Assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "prompt-toolkit>=3.0.51",
+    "pydantic>=2.11.7",
+    "python-dotenv>=1.1.1",
+    "python-levenshtein>=0.27.1",
+    "rich>=14.0.0",
+    "thefuzz>=0.22.1",
+    "tiktoken>=0.8.0",
+    "groq>=0.5.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
