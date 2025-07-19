@@ -144,16 +144,30 @@ class FolderCommand(BaseCommand):
         return "/folder "
     
     def get_description(self) -> str:
-        return "Change working directory"
+        return "Change working directory or show current directory structure"
     
     def matches(self, user_input: str) -> bool:
-        return user_input.strip().lower().startswith("/folder ")
+        return user_input.strip().lower().startswith("/folder")
     
     def execute(self, user_input: str, session: KimiSession) -> CommandResult:
         from ..ui.console import get_console
         
         console = get_console()
-        folder_path = user_input[len("/folder "):].strip()
+        user_input_stripped = user_input.strip().lower()
+        
+        # Check if it's just /folder without any path (fallback mode)
+        if user_input_stripped == "/folder":
+            return self._show_current_directory_structure(console)
+        
+        # Extract folder path (handle both "/folder " and "/folder" followed by path)
+        if user_input_stripped.startswith("/folder "):
+            folder_path = user_input[len("/folder "):].strip()
+        else:
+            folder_path = user_input[len("/folder"):].strip()
+        
+        # If no path provided after extraction, show current directory
+        if not folder_path:
+            return self._show_current_directory_structure(console)
         
         # Handle special cases
         if folder_path == "..":
@@ -192,3 +206,44 @@ class FolderCommand(BaseCommand):
         console.print(f"[dim]To:[/dim] [bright_cyan]{new_path}[/bright_cyan]")
         
         return CommandResult.success()
+    
+    def _show_current_directory_structure(self, console) -> CommandResult:
+        """Show the structure of the current working directory (non-recursive)."""
+        try:
+            current_dir = self.config.base_dir
+            console.print(f"[bold green]📁[/bold green] Current directory: [bright_cyan]{current_dir}[/bright_cyan]")
+            console.print()
+            
+            # Get directory contents
+            items = []
+            try:
+                for item in current_dir.iterdir():
+                    if item.is_dir():
+                        items.append((item.name, "📁", "directory"))
+                    else:
+                        items.append((item.name, "📄", "file"))
+            except PermissionError:
+                console.print(f"[bold red]✗[/bold red] Permission denied accessing directory contents")
+                return CommandResult.failure("Permission denied")
+            
+            # Sort items: directories first, then files, both alphabetically
+            items.sort(key=lambda x: (x[2] == "file", x[0].lower()))
+            
+            if not items:
+                console.print(f"[dim]Directory is empty[/dim]")
+            else:
+                console.print(f"[dim]Contents ({len(items)} items):[/dim]")
+                for name, icon, item_type in items:
+                    console.print(f"  {icon} {name}")
+                    
+                # Summary
+                dirs = sum(1 for _, _, item_type in items if item_type == "directory")
+                files = sum(1 for _, _, item_type in items if item_type == "file")
+                console.print()
+                console.print(f"[dim]{dirs} director{'y' if dirs == 1 else 'ies'}, {files} file{'s' if files != 1 else ''}[/dim]")
+            
+            return CommandResult.success()
+            
+        except Exception as e:
+            console.print(f"[bold red]✗[/bold red] Error reading directory: {e}")
+            return CommandResult.failure(str(e))
