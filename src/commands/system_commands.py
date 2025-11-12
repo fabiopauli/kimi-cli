@@ -82,6 +82,9 @@ class HelpCommand(BaseCommand):
 • `/context` - Show context usage statistics
 • `/export` - Export current conversation log to a file
 • `/os` - Show OS and environment information
+• `/model` - Show current model and available models
+• `/model <name>` - Switch to a specific model
+• `/reasoner` - Toggle reasoner model for complex tasks
 • `/help` - Show this help message
 • `/exit` or `/quit` - Exit the application
 
@@ -90,6 +93,11 @@ Kimi can read, create, and edit files through natural conversation. Just describ
 
 **System Commands:**
 Use run_bash (Linux/macOS) or run_powershell (Windows) for system operations.
+
+**Model Switching:**
+• Use `/model` to see all available models
+• Use `/reasoner` to quickly toggle the reasoner model (openai/gpt-oss-120b)
+• Use `/model <name>` to switch to any available model
 
 **Security Features:**
 • Fuzzy matching is opt-in for security
@@ -100,6 +108,7 @@ Use run_bash (Linux/macOS) or run_powershell (Windows) for system operations.
 • Use `/add` to include files in your conversation context
 • Try `/fuzzy` to enable more flexible file matching
 • Use `/context` to monitor token usage
+• Use `/reasoner` for complex reasoning tasks
 • Natural language works best - just describe what you need!
 """
         
@@ -159,25 +168,25 @@ class OsCommand(BaseCommand):
 
 class FuzzyCommand(BaseCommand):
     """Handle /fuzzy command to toggle fuzzy matching."""
-    
+
     def get_pattern(self) -> str:
         return "/fuzzy"
-    
+
     def get_description(self) -> str:
         return "Toggle fuzzy matching mode for file operations"
-    
+
     def matches(self, user_input: str) -> bool:
         return user_input.strip().lower() == "/fuzzy"
-    
+
     def execute(self, user_input: str, session: KimiSession) -> CommandResult:
         from ..ui.console import get_console
-        
+
         console = get_console()
-        
+
         if not self.config.fuzzy_available:
             console.print("[bold red]✗[/bold red] Fuzzy matching is not available. Install 'thefuzz' package.")
             return CommandResult.failure("Fuzzy matching not available")
-        
+
         # Toggle fuzzy mode
         if self.config.fuzzy_enabled_by_default:
             session.disable_fuzzy_mode()
@@ -185,5 +194,100 @@ class FuzzyCommand(BaseCommand):
         else:
             session.enable_fuzzy_mode()
             console.print("[bold green]✓[/bold green] Fuzzy matching enabled for this session.")
-        
+
+        return CommandResult.success()
+
+
+class ReasonerCommand(BaseCommand):
+    """Handle /reasoner command to switch to reasoner model."""
+
+    def get_pattern(self) -> str:
+        return "/reasoner"
+
+    def get_description(self) -> str:
+        return "Switch to the reasoner model for complex reasoning tasks"
+
+    def matches(self, user_input: str) -> bool:
+        return user_input.strip().lower() == "/reasoner"
+
+    def execute(self, user_input: str, session: KimiSession) -> CommandResult:
+        from ..ui.console import get_console
+
+        console = get_console()
+
+        # Toggle between reasoner and default model
+        if session.model == self.config.reasoner_model:
+            # Switch back to default model
+            session.switch_model(self.config.default_model)
+            console.print(f"[bold green]✓[/bold green] Switched to default model: [bright_cyan]{self.config.default_model}[/bright_cyan]")
+        else:
+            # Switch to reasoner model
+            session.switch_model(self.config.reasoner_model)
+            console.print(f"[bold green]✓[/bold green] Switched to reasoner model: [bright_cyan]{self.config.reasoner_model}[/bright_cyan]")
+            console.print("[dim]Reasoner model features: reasoning capabilities, browser search, and code execution[/dim]")
+
+        return CommandResult.success()
+
+
+class ModelCommand(BaseCommand):
+    """Handle /model command to show or switch models."""
+
+    def get_pattern(self) -> str:
+        return "/model"
+
+    def get_description(self) -> str:
+        return "Show current model or switch to a specific model (/model or /model <name>)"
+
+    def matches(self, user_input: str) -> bool:
+        return user_input.strip().lower().startswith("/model")
+
+    def execute(self, user_input: str, session: KimiSession) -> CommandResult:
+        from ..ui.console import get_console
+        from rich.table import Table
+
+        console = get_console()
+        parts = user_input.strip().split(maxsplit=1)
+
+        # If no model name provided, show current model and available models
+        if len(parts) == 1:
+            # Show current model info
+            console.print(f"\n[bold]Current Model:[/bold] [bright_cyan]{session.model}[/bright_cyan]")
+            console.print(f"[bold]Context Limit:[/bold] {self.config.get_max_tokens_for_model(session.model):,} tokens\n")
+
+            # Show available models table
+            models_table = Table(title="🤖 Available Models", show_header=True, header_style="bold bright_blue")
+            models_table.add_column("Model", style="bright_cyan")
+            models_table.add_column("Context Tokens", style="white")
+            models_table.add_column("Role", style="bright_yellow")
+
+            for model_name, context_limit in self.config.MODEL_CONTEXT_LIMITS.items():
+                role = ""
+                if model_name == self.config.default_model:
+                    role = "Default"
+                if model_name == self.config.reasoner_model:
+                    role = "Reasoner" if not role else role + ", Reasoner"
+                if model_name == session.model:
+                    role = "✓ Active" if not role else role + " (✓ Active)"
+
+                models_table.add_row(model_name, f"{context_limit:,}", role)
+
+            console.print(models_table)
+            console.print("\n[dim]Use '/model <name>' to switch to a specific model[/dim]")
+            console.print("[dim]Use '/reasoner' to quickly toggle the reasoner model[/dim]")
+
+        else:
+            # Switch to specified model
+            model_name = parts[1].strip()
+
+            # Check if model exists in available models
+            if model_name not in self.config.MODEL_CONTEXT_LIMITS:
+                console.print(f"[bold red]✗[/bold red] Model '{model_name}' not found.")
+                console.print(f"[dim]Available models: {', '.join(self.config.MODEL_CONTEXT_LIMITS.keys())}[/dim]")
+                return CommandResult.failure("Model not found")
+
+            # Switch to the model
+            session.switch_model(model_name)
+            console.print(f"[bold green]✓[/bold green] Switched to model: [bright_cyan]{model_name}[/bright_cyan]")
+            console.print(f"[dim]Context limit: {self.config.get_max_tokens_for_model(model_name):,} tokens[/dim]")
+
         return CommandResult.success()

@@ -28,9 +28,9 @@ class Config:
     config_file: Optional[Path] = None
     
     # Model settings
-    default_model: str = "moonshotai/kimi-k2-instruct"
-    reasoner_model: str = "moonshotai/kimi-k2-instruct"
-    current_model: str = "moonshotai/kimi-k2-instruct"
+    default_model: str = "moonshotai/kimi-k2-instruct-0905"
+    reasoner_model: str = "openai/gpt-oss-120b"
+    current_model: str = "moonshotai/kimi-k2-instruct-0905"
     is_reasoner: bool = False
     
     # File limits
@@ -71,10 +71,12 @@ class Config:
     # Constants
     ADD_COMMAND_PREFIX: str = "/add "
     MODEL_CONTEXT_LIMITS: Dict[str, int] = field(default_factory=lambda: {
+        "moonshotai/kimi-k2-instruct-0905": 262144,
+        "openai/gpt-oss-120b": 131072,
+        "openai/gpt-oss-20b": 131072,
         "llama-3.3-70b-versatile": 131072,
-        "moonshotai/kimi-k2-instruct": 131072,
         "llama-3.1-8b-instant": 131072,
-        "mixtral-8x7b-32768": 32768,
+        "groq/compound": 131072,
     })
     
     def __post_init__(self):
